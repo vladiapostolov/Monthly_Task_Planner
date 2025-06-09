@@ -1,0 +1,188 @@
+#include <iostream>
+#include <fstream>
+
+class Task {
+public:
+	Task(const Task& other) = delete; //we can have it, no worries
+	Task& operator=(const Task& other) = delete;
+	Task() = delete;
+
+	Task(const char* name_, unsigned priority_, unsigned time_) {
+		if (!name_) {
+			throw std::invalid_argument("Name is invalid");
+		}
+		name = new char[strlen(name_) + 1];
+		strcpy(name, name_);
+		name[strlen(name_)] = '\0';
+
+		priority = priority_;
+		isDone = false;
+		timeCompletion = time_;
+	}
+
+	const char* getName()const {
+		return name;
+	}
+
+	unsigned getPriority()const {
+		return priority;
+	}
+
+	bool getStatus()const {
+		return isDone;
+	}
+
+	unsigned getTimeCompletion()const {
+		return timeCompletion;
+	}
+
+	void writeFile(std::ostream& os) {
+		unsigned size = strlen(name);
+		os.write((const char*)&size, sizeof(size));
+		os.write(name, size);
+		os.write((const char*)&priority, sizeof(unsigned));
+		os.write((const char*)&isDone, sizeof(bool));
+		os.write((const char*)&timeCompletion, sizeof(unsigned));
+	}
+
+	Task(std::istream& is) {
+		unsigned size = 0;
+		is.read((char*)&size, sizeof(size));
+		name = new char[size + 1];
+		is.read(name, size);
+		name[size] = '\0';
+		is.read((char*)&priority, sizeof(priority));
+		is.read((char*)&isDone, sizeof(isDone));
+		is.read((char*)&timeCompletion, sizeof(timeCompletion));
+	}
+
+	void setDuration(unsigned duration) {
+		if (duration == 0) {
+			throw std::invalid_argument("Duration is 0, why?");
+		}
+		timeCompletion = duration;
+
+	}
+
+	void setPriority(unsigned priority) {
+		if (priority == 0) {
+			throw std::invalid_argument("Priority is 0, why?");
+		}
+		this->priority = priority;
+	}
+
+	void setStatus(bool status) {
+
+	}
+
+private:
+	char* name = nullptr;
+	unsigned priority = 0;
+	bool isDone = false;
+	unsigned timeCompletion = 0;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct Entry {
+	Task* task;
+	int hour;
+
+};
+
+class MonthlyPlanner {
+public:
+	MonthlyPlanner() {
+		for (int i = 0; i < 30; i++) {
+			for (int j = 0; j < 10; j++) {
+				tasks[i][j] = nullptr;
+			}
+			for (int k = 0; k < 24; k++) {
+				isAvailable[i][k] = true;
+			}
+		}
+
+		for (int d = 0; d < 30; ++d)
+			currentDailyTasks[d] = 0;
+	}
+
+	void addTask(const Task& toAdd, int day, int hourToStart) {
+		if (isAvailable[day][hourToStart] == true && currentDailyTasks[day] < 10) {
+			tasks[day][currentDailyTasks[day]] = new Entry({ nullptr,hourToStart });
+			tasks[day][currentDailyTasks[day]]->task = new Task(toAdd.getName(), toAdd.getPriority(), toAdd.getStatus());
+			for (int i = 0; i < tasks[day][currentDailyTasks[day]]->task->getTimeCompletion(); i++) {
+				if (hourToStart + i >= 24) {
+					isAvailable[day++][hourToStart + i-24] = false;
+				}
+				else {
+					isAvailable[day][hourToStart + i] = false;
+				}
+			}
+			currentDailyTasks[day]++;
+		}
+		else {
+			throw std::runtime_error("No space for tasks");
+		}
+	}
+
+	void markCompleted(int day, int hour) {
+		for (int i = 0; i < 10; i++) {
+			if (tasks[day][i]->hour == hour) {
+				tasks[day][i]->task->setStatus(true);
+				return;
+			}
+		}
+
+		throw std::runtime_error("No Task exists");
+	}
+
+	void writeToFile(const char* filename) {
+		if (!filename) {
+			throw std::invalid_argument("File doesnt exist");
+		}
+
+		std::ofstream ofs(filename, std::ios::binary);
+		if (!ofs.is_open()) {
+			throw std::runtime_error("File does not open!");
+		}
+
+		for (int i = 0; i < 30; i++) {
+			ofs.write((const char*)&currentDailyTasks[i], sizeof(int));
+			for (int j = 0; j < currentDailyTasks[i]; j++) {
+				ofs.write((const char*)&tasks[i][j]->hour, sizeof(int));
+				tasks[i][j]->task->writeFile(ofs);
+			}
+		}
+
+		ofs.close();
+	}
+
+private:
+	Entry* tasks[30][10] = { nullptr };
+	int currentDailyTasks[30] = { 0 };
+	bool isAvailable[30][24]{ true };
+};
+
+
+
+
+
+
+
